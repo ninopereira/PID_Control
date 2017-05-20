@@ -35,12 +35,16 @@ int main()
   PID pid_st;
   PID pid_th;
 
-  // TODO: Initialize the pid variable.
+  // TODO: Initialize the pid variables.
 //  pid_st.Init(0.2, 0.01, 2); //original
-  pid_st.Init(0.159815, 0.001, 2.1);  //auto tuned
+  pid_st.Init(0.159815, 0.001, 2.1);  //after auto tuning using twidle algorithm
+
+  // PID for throttle: not used at the moment
   pid_th.Init(0.1, 0.0, 0.0);
+
+  // Variables used for twidle algorithm
   double abs_cte_sum = 0;
-  size_t evaluation_period = 2000;
+  size_t evaluation_period = 400;
   size_t iterations = 0;
   size_t twidle_iter = 0;
   double twidle_params[3] = {0.01,0.001,0.1};
@@ -49,9 +53,12 @@ int main()
   size_t twidle_state = 0;
   double best_error=1000;
   bool initialized = false;
-  bool twidle_enabled = true;
 
-  double throttle_value = 0.5;
+  // flag to enable tuning the PID controller with twidle algorithm on the fly (online mode)
+  bool twidle_enabled = false;
+
+  // fixed throttle value
+  double throttle_value = 0.4;
 
   h.onMessage([&pid_st, &pid_th, &iterations, &abs_cte_sum, &evaluation_period,
               &twidle_params, &twidle_pid, &twidle_iter, &twidle_tolerance,
@@ -72,6 +79,7 @@ int main()
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
 
+          /// Twidle algorithm for online calibration of PID params
           if ((iterations>evaluation_period) && (iterations%evaluation_period == 0) && twidle_enabled)
           {
               if (!initialized)
@@ -152,9 +160,9 @@ int main()
           else if (steer_value < -1) steer_value = -1;
 
           // DEBUG
-//          std::cout << "iteration = " << iterations << " CTE: " << cte << " Steering Value: " << steer_value << std::endl;
-          if(speed>30)
+          if(speed>30 && twidle_enabled) // for Twidle algorithm only
           {
+            std::cout << "iteration = " << iterations << " CTE: " << cte << " Steering Value: " << steer_value << std::endl;
             abs_cte_sum += fabs(cte);
             iterations ++;
           }
@@ -162,7 +170,7 @@ int main()
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-//          std::cout << msg << std::endl;
+          std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {

@@ -1,6 +1,30 @@
 # CarND-Controls-PID
 Self-Driving Car Engineer Nanodegree Program
 
+
+# Reflection
+
+## Effect each of the P, I, D components
+
+Briefly each component of the PID controller has a corresponding gain defined as follows: 
+   Kp - Proportional gain (applied to the current error)
+   Ki - Integral gain (applied to the sum of all errors since the start)
+   Kd - Differential gain (applied to the difference between current error and previous one)
+
+After the implementation in the current project it was observed that the I component has very small (event negligible effect on the controller). If set the gain to zero and the difference is not even noticed.
+
+The proportional component P drives the vehicle towards the goal but the differential parameter D plays the most important role in this situation by imediate counteracting the effect of overshooting.
+This is exactly what we would expect from the theory behind the PID controller.
+
+
+## Final hyperparameters
+
+The final hyperparameters (P, I, D coefficients) were obtained in two steps.
+First an initial set of parameters were manually tuned just to keep the car on the track at very low speed.
+Then the twidle algorithm was applied to fine tune the parameters in an online mode (i.e. by running the car on the track and the twidle algorithm every pre-determined number of iterations.
+We can enable and vary the parameters for the twidle algorithm. In fact it can be left running all the time. The only drawback would be some variation in the expected behaviour as it tries different parameters.
+
+
 ---
 
 ## Dependencies
