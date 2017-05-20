@@ -36,9 +36,27 @@ int main()
   PID pid_th;
 
   // TODO: Initialize the pid variable.
-  pid_st.Init(0.2, 0.0, 0.5);
+//  pid_st.Init(0.2, 0.01, 2); //original
+  pid_st.Init(0.159815, 0.001, 2.1);  //auto tuned
   pid_th.Init(0.1, 0.0, 0.0);
-  h.onMessage([&pid_st, &pid_th](uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
+  double abs_cte_sum = 0;
+  size_t evaluation_period = 2000;
+  size_t iterations = 0;
+  size_t twidle_iter = 0;
+  double twidle_params[3] = {0.01,0.001,0.1};
+  double twidle_pid[3] = {pid_st._Kp,pid_st._Ki,pid_st._Kd};
+  double twidle_tolerance=0.01;
+  size_t twidle_state = 0;
+  double best_error=1000;
+  bool initialized = false;
+  bool twidle_enabled = true;
+
+  double throttle_value = 0.5;
+
+  h.onMessage([&pid_st, &pid_th, &iterations, &abs_cte_sum, &evaluation_period,
+              &twidle_params, &twidle_pid, &twidle_iter, &twidle_tolerance,
+              &twidle_state, &best_error, &initialized, &throttle_value, &twidle_enabled]
+              (uWS::WebSocket<uWS::SERVER> ws, char *data, size_t length, uWS::OpCode opCode) {
     // "42" at the start of the message means there's a websocket message event.
     // The 4 signifies a websocket message
     // The 2 signifies a websocket event
@@ -54,6 +72,73 @@ int main()
           double speed = std::stod(j[1]["speed"].get<std::string>());
           double angle = std::stod(j[1]["steering_angle"].get<std::string>());
 
+          if ((iterations>evaluation_period) && (iterations%evaluation_period == 0) && twidle_enabled)
+          {
+              if (!initialized)
+              {
+                  double average_cte = abs_cte_sum/(double)evaluation_period;
+                  best_error = average_cte;
+                  initialized = true;
+                  twidle_pid[twidle_iter]+=twidle_params[twidle_iter];
+                  pid_st.Init(twidle_pid[0],twidle_pid[1], twidle_pid[2]);
+                  std::cout << "Initial PID params: " << "Kp = " << pid_st._Kp << " Ki = " << pid_st._Ki << " Kd = " << pid_st._Kd <<std::endl;
+              }
+              else
+              {
+                  double average_cte = abs_cte_sum/(double)evaluation_period;
+
+                  switch (twidle_state)
+                  {
+                    case 0:
+                      if(average_cte<best_error)
+                      {
+                          best_error = average_cte;
+                          twidle_params[twidle_iter]*=1.1;
+                          twidle_iter = (twidle_iter+1)%3;
+                          twidle_pid[twidle_iter]+=twidle_params[twidle_iter];
+                          pid_st.Init(twidle_pid[0],twidle_pid[1], twidle_pid[2]);
+                          // state doesn't change
+                      }
+                      else
+                      {
+                          twidle_pid[twidle_iter]-=2*twidle_params[twidle_iter];
+                          pid_st.Init(twidle_pid[0],twidle_pid[1], twidle_pid[2]);
+                          twidle_state=1;
+                      }
+                      break;
+                    case 1:
+                      if(average_cte<best_error)
+                      {
+                          best_error = average_cte;
+                          twidle_params[twidle_iter]*=1.1;
+                      }
+                      else
+                      {
+                          twidle_pid[twidle_iter]+=twidle_params[twidle_iter];
+                          twidle_params[twidle_iter]*=0.9;
+                      }
+                      twidle_iter = (twidle_iter+1)%3;
+                      twidle_pid[twidle_iter]+=twidle_params[twidle_iter];
+                      pid_st.Init(twidle_pid[0],twidle_pid[1], twidle_pid[2]);
+                      twidle_state=0;
+                      break;
+                  }
+
+                  if(twidle_params[0]+twidle_params[1]+twidle_params[2]<twidle_tolerance)
+                  {
+                    std::cout << "==> PID Params Complete! average_cte= " << average_cte << " sum = "<< twidle_params[0]+twidle_params[1]+twidle_params[2] << " iteration = " << iterations << std::endl;
+                    std::cout << "Final PID params: " << "Kp = " << pid_st._Kp << " Ki = " << pid_st._Ki << " Kd = " << pid_st._Kd <<std::endl;
+                    throttle_value = -1;
+                  }
+                  else
+                  {
+                    std::cout << "==> Adjusting PID Params! average_cte= " <<  average_cte << " sum = "<< twidle_params[0]+twidle_params[1]+twidle_params[2] << " iteration = " << iterations << std::endl;
+                    std::cout << "Kp = " << pid_st._Kp << " Ki = " << pid_st._Ki << " Kd = " << pid_st._Kd <<std::endl;
+                    abs_cte_sum = 0;
+                  }
+              }
+          }
+
           /*
           * TODO: Calcuate steering value here, remember the steering value is
           * [-1, 1].
@@ -63,39 +148,21 @@ int main()
           pid_st.UpdateError(cte);
           double steer_value = pid_st.TotalError();
 
-          pid_th.UpdateError(1/cte);
-          double throttle_value = pid_th.TotalError();
-
-          if (steer_value>1)
-          {
-            std::cout << "+++++++++ STEERING ABOVE UPPER LIMIT +++++++++" << std::endl;
-            steer_value = 1;
-          }
-          else if (steer_value<-1)
-          {
-            std::cout << "--------- STEERING ABOVE UPPER LIMIT ---------" << std::endl;
-            steer_value = -1;
-          }
-
-          if (throttle_value < 0.1)
-          {
-              throttle_value = 0.1;
-          }
-          if (throttle_value > 0.5)
-          {
-              throttle_value = 0.5;
-          }
-
-          throttle_value =0.2; //BUG
+          if (steer_value > 1) steer_value = 1;
+          else if (steer_value < -1) steer_value = -1;
 
           // DEBUG
-          std::cout << "CTE: " << cte << " Steering Value: " << steer_value << std::endl;
-
+//          std::cout << "iteration = " << iterations << " CTE: " << cte << " Steering Value: " << steer_value << std::endl;
+          if(speed>30)
+          {
+            abs_cte_sum += fabs(cte);
+            iterations ++;
+          }
           json msgJson;
           msgJson["steering_angle"] = steer_value;
           msgJson["throttle"] = throttle_value;
           auto msg = "42[\"steer\"," + msgJson.dump() + "]";
-          std::cout << msg << std::endl;
+//          std::cout << msg << std::endl;
           ws.send(msg.data(), msg.length(), uWS::OpCode::TEXT);
         }
       } else {
