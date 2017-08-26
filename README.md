@@ -1,6 +1,7 @@
 # CarND-Controls-PID
 Self-Driving Car Engineer Nanodegree Program
 
+![Twidle algorithm flowchart](twidle_algorithm.svg.png)
 
 # Reflection
 
