@@ -1,9 +1,13 @@
-# CarND-Controls-PID
+# PID Control
+
+![](PID_Control.png)
 Self-Driving Car Engineer Nanodegree Program
 
-![Twidle algorithm flowchart](twidle_algorithm.svg.png)
 
-# Reflection
+[Video result](https://youtu.be/-5K2XYpX2M8)
+
+
+# Description
 
 ## Effect each of the P, I, D components
 
@@ -23,10 +27,12 @@ This is exactly what we would expect from the theory behind the PID controller.
 The final hyperparameters (P, I, D coefficients) were obtained in two steps.
 First an initial set of parameters were manually tuned just to keep the car on the track at very low speed.
 Then the twidle algorithm was applied to fine tune the parameters in an online mode (i.e. by running the car on the track and the twidle algorithm every pre-determined number of iterations.
-We can enable and vary the parameters for the twidle algorithm. In fact it can be left running all the time. The only drawback would be some variation in the expected behaviour as it tries different parameters.
+We can enable and vary the parameters for the *twidle algorithm*. In fact it can be left running all the time. The only drawback would be some variation in the expected behaviour as it tries different parameters.
+
+![Twidle algorithm flowchart](twidle_algorithm.svg.png)
 
 
----
+# Instructions
 
 ## Dependencies
 
